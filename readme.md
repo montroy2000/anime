@@ -73,7 +73,7 @@ It works as it is but if you want you can create a `.env` file in the root direc
 
 ```env
 PORT=3000 # Optional
-BASE_URL=https://animepahe.pw # Optional
+BASE_URL=https://animepahe.pw # Optional. Use https://anveshna-backend-v2.vercel.app for cookie-free Anveshna search/airing.
 USER_AGENT=  # Optional
 COOKIES=     # Optional - for manual cookie management
 USE_PROXY=false

@@ -1,11 +1,16 @@
 const DataProcessor = require('../utils/dataProcessor');
 const Config = require('../utils/config');
 const Animepahe = require('../scrapers/animepahe');
+const Anveshna = require('../scrapers/anveshna');
 const { CustomError } = require('../middleware/errorHandler');
+
+const useAnveshna = () => Config.baseUrl.includes('anveshna-backend');
 
 class HomeModel {
     static async getAiringAnime(page) {
-        const results = await Animepahe.getData("airing", { page });
+        const results = useAnveshna()
+            ? await Anveshna.fetchAiringData(page)
+            : await Animepahe.getData("airing", { page });
 
         if (!results || !results.data) {
             throw new CustomError('No airing anime data found', 404);
@@ -19,7 +24,9 @@ class HomeModel {
             throw new CustomError('Search query is required', 400);
         }
 
-        const results = await Animepahe.getData("search", { query, page });
+        const results = useAnveshna()
+            ? await Anveshna.fetchSearchData(query, page)
+            : await Animepahe.getData("search", { query, page });
 
         if (!results || !results.data) {
             throw new CustomError('No search results found', 404);

@@ -96,7 +96,14 @@ class DataProcessor {
             season: item.season || null,
             poster: item.poster || null,
             session: item.session || null,
-            link: (item.session ? `${Config.getUrl('animeInfo', item.session)}` : '') || null,
+            link: item.source === 'anveshna' && item.session
+                ? `https://anveshna.devxoshakya.xyz/watch/${item.session}`
+                : (item.session ? `${Config.getUrl('animeInfo', item.session)}` : '') || null,
+            source: item.source || 'animepahe',
+            malId: item.malId || null,
+            genres: item.genres || [],
+            description: item.description || null,
+            cover: item.cover || null,
         }));
     }
 
