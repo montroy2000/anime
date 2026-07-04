@@ -72,10 +72,9 @@ class Animepahe {
             });
 
             console.log('Navigating to URL...');
-            await page.goto(Config.getUrl('home'), {
-                waitUntil: 'networkidle',
-                timeout: 30000, 
-            });
+            await page.goto("https://animepahe.pw/", { waitUntil: "domcontentloaded", timeout: 60000 });
+ 
+         
 
             // Check for DDoS-Guard challenge
             await page.waitForTimeout(2000);
