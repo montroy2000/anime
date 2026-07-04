@@ -15,6 +15,7 @@ class Animepahe {
         this.cookiesPath = path.join('/tmp', 'cookies.json');
         this.cookiesRefreshInterval = 14 * 24 * 60 * 60 * 1000; // 14 days
         this.isRefreshingCookies = false;
+        this.refreshCookiesPromise = null;
         this.activeBrowser = null;
         this.cloudflareSessionCookies = null
 
@@ -23,6 +24,11 @@ class Animepahe {
     }
 
     async initialize() {
+        if (Config.cookies) {
+            console.log('Using configured cookies; skipping automatic cookie refresh');
+            return true;
+        }
+
         const needsRefresh = await this.needsCookieRefresh();
         
         if (needsRefresh) {
@@ -47,16 +53,21 @@ class Animepahe {
     }        
     
     async refreshCookies() {
-        if (this.isRefreshingCookies) return;
+        if (this.refreshCookiesPromise) return this.refreshCookiesPromise;
+
         this.isRefreshingCookies = true;
 
         const proxy = Config.proxyEnabled ? Config.getRandomProxy() : null;
+        let context;
 
-        try {
+        this.refreshCookiesPromise = (async () => {
             const browser = await launchBrowser(proxy);
             console.log('Browser singleton obtained for cookie refresh');
 
-            const context = await browser.newContext();
+            context = await browser.newContext({
+                userAgent: Config.userAgent,
+                extraHTTPHeaders: Config.extraHTTPHeaders
+            });
             const page = await context.newPage();
 
             // Add stealth plugin
@@ -72,7 +83,7 @@ class Animepahe {
             });
 
             console.log('Navigating to URL...');
-            await page.goto("https://animepahe.pw/", { waitUntil: "domcontentloaded", timeout: 60000 });
+            const response = await page.goto(Config.getUrl('home'), { waitUntil: "domcontentloaded", timeout: 60000 });
  
          
 
@@ -84,8 +95,15 @@ class Animepahe {
                 await page.waitForSelector('#ddg-cookie', { state: 'hidden', timeout: 30000 });
             }
 
-            const cookies = await context.cookies();
+            const cookies = await context.cookies(Config.getUrl('home'));
             if (!cookies || cookies.length === 0) {
+                const status = response ? response.status() : 'no-response';
+                const title = await page.title().catch(() => 'unknown-title');
+                console.error('Cookie refresh produced no cookies', {
+                    status,
+                    url: page.url(),
+                    title
+                });
                 throw new CustomError('No cookies found after page load', 503);
             }
 
@@ -98,12 +116,19 @@ class Animepahe {
             await fs.writeFile(this.cookiesPath, JSON.stringify(cookieData, null, 2));
 
             console.log('Cookies refreshed successfully');
-            await context.close();
+        })();
+
+        try {
+            return await this.refreshCookiesPromise;
         } catch (error) {
             console.error('Cookie refresh error:', error);
             throw new CustomError(`Failed to refresh cookies: ${error.message}`, 503);
         } finally {
+            if (context) {
+                await context.close().catch(err => console.error('Error closing browser context:', err.message));
+            }
             this.isRefreshingCookies = false;
+            this.refreshCookiesPromise = null;
             await closeBrowser(proxy);
         }
     }
@@ -113,11 +138,15 @@ class Animepahe {
         if (userProvidedCookies) {
             if (typeof userProvidedCookies === 'string' && userProvidedCookies.trim()) {
                 console.log('Using user-provided cookies');
-                Config.setCookies(userProvidedCookies.trim());
                 return userProvidedCookies.trim();
             } else {
                 throw new CustomError('Invalid user-provided cookies format', 400);
             }
+        }
+
+        if (Config.cookies) {
+            console.log('Using configured cookies');
+            return Config.cookies;
         }
 
         let cookieData;
@@ -132,16 +161,13 @@ class Animepahe {
         // Proactive background refresh if cookies are older than 13 days
         const ageInMs = Date.now() - cookieData.timestamp;
         if (ageInMs > (this.cookiesRefreshInterval - 24 * 60 * 60 * 1000) && !this.isRefreshingCookies) {
-            this.isRefreshingCookies = true;
             this.refreshCookies()
                 .catch(err => console.error('Background cookie refresh failed:', err))
-                .finally(() => { this.isRefreshingCookies = false; });
         }
 
         const cookieHeader = cookieData.cookies
             .map(cookie => `${cookie.name}=${cookie.value}`)
             .join('; ');
-        Config.setCookies(cookieHeader);
         return cookieHeader;
     }
 
@@ -153,6 +179,9 @@ class Animepahe {
         } catch (error) {
             // Only retry with automatic cookies if user didn't provide cookies
             if (!userProvidedCookies && (error.response?.status === 401 || error.response?.status === 403)) {
+                if (Config.cookies) {
+                    throw new CustomError('Configured COOKIES were rejected by AnimePahe; update the COOKIES environment variable', 403);
+                }
                 await this.refreshCookies();
                 return this.fetchApiData(endpoint, params, userProvidedCookies);
             }
@@ -233,6 +262,9 @@ class Animepahe {
                 error.response?.status === 403 ||
                 (error.message && error.message.includes('DDoS-Guard authentication required'))
             ) {
+                if (Config.cookies) {
+                    throw new CustomError('Configured COOKIES were rejected by AnimePahe; update the COOKIES environment variable', 403);
+                }
                 await this.refreshCookies();
                 cookieHeader = await this.getCookies();
                 const html = await RequestManager.fetch(url, cookieHeader);
