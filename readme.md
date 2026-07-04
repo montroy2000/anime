@@ -168,6 +168,14 @@ GET /api/play/:session?episodeId=example&downloads=false  # Without downloads (f
 GET /api/play/download-links?url=https://pahe.win/XYZ # To only get one download link
 ```
 
+When `BASE_URL=https://anveshna-backend-v2.vercel.app`, play URLs use AniList IDs and numeric episodes:
+
+```http
+GET /api/play/213846?episodeId=1
+```
+
+The response includes an Anveshna watch page such as `https://anveshna.devxoshakya.xyz/watch/213846?ep=1` and a generated iframe source.
+
 > **Note:** 
 > - `:session` is the anime's unique identifier
 > - `episodeId` is the episode's unique identifier from the /releases endpoint

@@ -4,12 +4,19 @@ const { JSDOM } = require('jsdom');
 const Config = require('../utils/config');
 const DataProcessor = require('../utils/dataProcessor');
 const Animepahe = require('../scrapers/animepahe');
+const Anveshna = require('../scrapers/anveshna');
 const { getJsVariable } = require('../utils/jsParser');
 const { CustomError } = require('../middleware/errorHandler');
 const UrlConverter = require('../utils/urlConverter');
 
+const useAnveshna = () => Config.baseUrl.includes('anveshna-backend');
+
 class PlayModel {
     static async getStreamingLinks(id, episodeId, includeDownloads = true) {
+        if (useAnveshna()) {
+            return Anveshna.getStreamingLinks(id, episodeId);
+        }
+
         const results = await Animepahe.getData('play', { id, episodeId }, false);
         if (!results) throw new CustomError('Failed to fetch streaming data', 503);
 
